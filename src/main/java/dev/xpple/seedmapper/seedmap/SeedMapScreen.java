@@ -336,7 +336,7 @@ public class SeedMapScreen extends Screen {
         Component seedComponent = Component.translatable("seedMap.seed", accent(Long.toString(this.seed)), Cubiomes.mc2str(this.version).getString(0), ComponentUtils.formatGeneratorFlags(this.generatorFlags));
         guiGraphicsExtractor.text(this.font, seedComponent, this.horizontalPadding(), this.verticalPadding() - this.font.lineHeight - 1, -1);
         this.renderBiomes(guiGraphicsExtractor, mouseX, mouseY, partialTick);
-        guiGraphicsExtractor.nextStratum();
+        //guiGraphicsExtractor.nextStratum();
         this.renderFeatures(guiGraphicsExtractor, mouseX, mouseY, partialTick);
         // draw hovered coordinates and biome
         MutableComponent coordinates = accent("x: %d, y: %d, z: %d".formatted(QuartPos.toBlock(this.mouseQuart.x()), this.getBiomeYHeight(), QuartPos.toBlock(this.mouseQuart.z())));
@@ -424,7 +424,7 @@ public class SeedMapScreen extends Screen {
                }
            });
 
-       guiGraphicsExtractor.nextStratum();
+       //guiGraphicsExtractor.nextStratum();
 
        // draw strongholds
        if (this.toggleableFeatures.contains(MapFeature.STRONGHOLD) && Configs.ToggledFeatures.contains(MapFeature.STRONGHOLD)) {
@@ -1251,9 +1251,13 @@ public class SeedMapScreen extends Screen {
     private static void drawIconStatic(GuiGraphicsExtractor guiGraphicsExtractor, Identifier identifier, int minX, int minY, int iconWidth, int iconHeight, int color) {
         // Skip intersection checks (GuiRenderState.hasIntersection) you would otherwise get when calling
         // GuiGraphics.blit as these checks incur a significant performance hit
+        /*
         AbstractTexture texture = Minecraft.getInstance().getTextureManager().getTexture(identifier);
         BlitRenderState renderState = new BlitRenderState(RenderPipelines.GUI_TEXTURED, TextureSetup.singleTexture(texture.getTextureView(), texture.getSampler()), new Matrix3x2f(guiGraphicsExtractor.pose()), minX, minY, minX + iconWidth, minY + iconHeight, 0, 1, 0, 1, color, guiGraphicsExtractor.scissorStack.peek());
         guiGraphicsExtractor.guiRenderState.addBlitToCurrentLayer(renderState);
+         */
+
+        guiGraphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, identifier, minX, minY, 0, 0, iconWidth, iconHeight, iconWidth, iconHeight, color);
     }
 
     private static final BiMap<Integer, ResourceKey<Level>> DIM_ID_TO_MC = ImmutableBiMap.of(
