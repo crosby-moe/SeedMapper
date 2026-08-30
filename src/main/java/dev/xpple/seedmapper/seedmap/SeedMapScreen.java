@@ -189,6 +189,8 @@ public class SeedMapScreen extends Screen {
     private final PositionalRandomFactory oreVeinRandom;
     private final MemorySegment oreVeinParameters;
     private final @Nullable MemorySegment[] canyonCarverConfigs;
+    /// [Pos] to be used for structure calculations. This is NOT thread safe.
+    private final MemorySegment structurePos;
 
     private final Object2ObjectMap<ObjectIntPair<TilePos>, Tile> biomeTileCache = new Object2ObjectOpenHashMap<>();
     private final SeedMapCache<ObjectIntPair<TilePos>, int[]> biomeCache;
@@ -248,6 +250,7 @@ public class SeedMapScreen extends Screen {
         Cubiomes.initTerrainNoise(this.structureGenerator, this.seed, this.dimension);
         this.biomeGenerator = Generator.allocate(this.arena);
         this.biomeGenerator.copyFrom(TerrainNoise.g(this.structureGenerator));
+        this.structurePos = Pos.allocate(this.arena);
 
         this.structureConfigs = IntStream.range(0, Cubiomes.FEATURE_NUM())
             .mapToObj(structure -> {
@@ -405,7 +408,6 @@ public class SeedMapScreen extends Screen {
                int horRegionRadius = Math.ceilDiv(horChunkRadius, regionSize);
                int verRegionRadius = Math.ceilDiv(verChunkRadius, regionSize);
                StructureChecks.GenerationCheck generationCheck = StructureChecks.getGenerationCheck(structure);
-               MemorySegment structurePos = Pos.allocate(this.arena);
                for (int relRegionX = -horRegionRadius; relRegionX <= horRegionRadius; relRegionX++) {
                    for (int relRegionZ = -verRegionRadius; relRegionZ <= verRegionRadius; relRegionZ++) {
                        RegionPos regionPos = centerRegion.add(relRegionX, relRegionZ);
