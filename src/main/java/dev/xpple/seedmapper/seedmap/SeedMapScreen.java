@@ -399,6 +399,8 @@ public class SeedMapScreen extends Screen {
 
                        List<FeatureData> features = featureCache.computeIfAbsent(tilePos, _ -> {
                            int regionSize = StructureConfig.regionSize(structureConfig);
+                           StructureChecks.GenerationCheck generationCheck = StructureChecks.getGenerationCheck(structure);
+
                            RegionPos startPos = RegionPos.fromChunkPos(tilePos.toChunkPos(), regionSize);
                            RegionPos endPos = RegionPos.fromChunkPos(tilePos.toLastChunkPos(), regionSize);
 
