@@ -7,6 +7,7 @@ on:
     branches:
       - master
   create: # for Git tag creations
+  workflow_dispatch:
 
 jobs:
   compile-cubiomes:
