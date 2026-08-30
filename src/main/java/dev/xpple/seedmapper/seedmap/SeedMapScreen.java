@@ -208,7 +208,6 @@ public class SeedMapScreen extends Screen {
     private final int featureIconsCombinedWidth;
 
     private final ObjectSet<FeatureWidget> featureWidgets = new ObjectOpenHashSet<>();
-    private final List<FeatureWidget> undeduplicatedfeatureWidgets = new ObjectArrayList<>();
 
     private QuartPos2 mouseQuart;
 
@@ -511,9 +510,6 @@ public class SeedMapScreen extends Screen {
        // draw feature icons
        this.drawFeatureIcons(guiGraphicsExtractor);
 
-       SeedMapper.LOGGER.info("Features: {}, {} deduplicated.", undeduplicatedfeatureWidgets.size(), featureWidgets.size());
-       undeduplicatedfeatureWidgets.clear();
-
        // draw marker
        if (!this.isMinimap()) {
            if (this.markerWidget != null && this.markerWidget.withinBounds()) {
@@ -607,7 +603,6 @@ public class SeedMapScreen extends Screen {
         }
 
         this.featureWidgets.add(widget);
-        this.undeduplicatedfeatureWidgets.add(widget);
         return widget;
     }
 
