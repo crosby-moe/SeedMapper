@@ -63,7 +63,7 @@ public class SeedMapper implements ClientModInitializer {
 
     public static final Path modConfigPath = FabricLoader.getInstance().getConfigDir().resolve(MOD_ID);
 
-    private static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     public static final boolean BARITONE_AVAILABLE = FabricLoader.getInstance().getModContainer("baritone-meteor").isPresent();
 

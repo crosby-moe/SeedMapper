@@ -37,13 +37,7 @@ import it.unimi.dsi.fastutil.ints.AbstractIntCollection;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
-import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectIntPair;
-import it.unimi.dsi.fastutil.objects.ObjectIterator;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import it.unimi.dsi.fastutil.objects.ObjectSet;
+import it.unimi.dsi.fastutil.objects.*;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -214,6 +208,7 @@ public class SeedMapScreen extends Screen {
     private final int featureIconsCombinedWidth;
 
     private final ObjectSet<FeatureWidget> featureWidgets = new ObjectOpenHashSet<>();
+    private final List<FeatureWidget> undeduplicatedfeatureWidgets = new ObjectArrayList<>();
 
     private QuartPos2 mouseQuart;
 
@@ -516,6 +511,9 @@ public class SeedMapScreen extends Screen {
        // draw feature icons
        this.drawFeatureIcons(guiGraphicsExtractor);
 
+       SeedMapper.LOGGER.info("Features: {}, {} deduplicated.", undeduplicatedfeatureWidgets.size(), featureWidgets.size());
+       undeduplicatedfeatureWidgets.clear();
+
        // draw marker
        if (!this.isMinimap()) {
            if (this.markerWidget != null && this.markerWidget.withinBounds()) {
@@ -609,6 +607,7 @@ public class SeedMapScreen extends Screen {
         }
 
         this.featureWidgets.add(widget);
+        this.undeduplicatedfeatureWidgets.add(widget);
         return widget;
     }
 
