@@ -207,7 +207,7 @@ public class SeedMapScreen extends Screen {
     private final List<MapFeature> toggleableFeatures;
     private final int featureIconsCombinedWidth;
 
-    private final ObjectSet<FeatureWidget> featureWidgets = new ObjectOpenHashSet<>();
+    private final ObjectList<FeatureWidget> featureWidgets = new ObjectArrayList<>();
 
     private QuartPos2 mouseQuart;
 
@@ -378,6 +378,9 @@ public class SeedMapScreen extends Screen {
    }
 
    protected void renderFeatures(GuiGraphicsExtractor guiGraphicsExtractor, int mouseX, int mouseY, float partialTick) {
+        // clear old feature widgets
+       this.featureWidgets.clear();
+
        int tileSizePixels = TILE_SIZE_PIXELS.getAsInt();
        int horTileRadius = Math.ceilDiv(this.seedMapWidth, tileSizePixels) + 1;
        int verTileRadius = Math.ceilDiv(this.seedMapHeight, tileSizePixels) + 1;
@@ -415,7 +418,7 @@ public class SeedMapScreen extends Screen {
                        if (data == null) {
                            continue;
                        }
-                       this.addFeatureWidget(feature, data.texture(), data.pos());
+                       this.addFeatureWidget(guiGraphicsExtractor, feature, data.texture(), data.pos());
                    }
                }
            });
@@ -427,7 +430,7 @@ public class SeedMapScreen extends Screen {
            TwoDTree tree = strongholdDataCache.get(this.worldIdentifier);
            if (tree != null) {
                for (BlockPos strongholdPos : tree) {
-                   this.addFeatureWidget(MapFeature.STRONGHOLD, strongholdPos);
+                   this.addFeatureWidget(guiGraphicsExtractor, MapFeature.STRONGHOLD, strongholdPos);
                }
            }
        }
@@ -443,7 +446,7 @@ public class SeedMapScreen extends Screen {
                        continue;
                    }
                    if (Configs.ToggledFeatures.contains(oreVeinData.oreVeinType())) {
-                       this.addFeatureWidget(oreVeinData.oreVeinType(), oreVeinData.blockPos());
+                       this.addFeatureWidget(guiGraphicsExtractor, oreVeinData.oreVeinType(), oreVeinData.blockPos());
                    }
                }
            }
@@ -461,7 +464,7 @@ public class SeedMapScreen extends Screen {
                        int relChunkZ = i / TilePos.TILE_SIZE_CHUNKS;
                        int chunkX = chunkPos.x() + relChunkX;
                        int chunkZ = chunkPos.z() + relChunkZ;
-                       this.addFeatureWidget(MapFeature.CANYON, new BlockPos(SectionPos.sectionToBlockCoord(chunkX), 0, SectionPos.sectionToBlockCoord(chunkZ)));
+                       this.addFeatureWidget(guiGraphicsExtractor, MapFeature.CANYON, new BlockPos(SectionPos.sectionToBlockCoord(chunkX), 0, SectionPos.sectionToBlockCoord(chunkZ)));
                    });
                }
            }
@@ -478,7 +481,7 @@ public class SeedMapScreen extends Screen {
                        if (!waypoint.dimension().equals(DIM_ID_TO_MC.get(this.dimension))) {
                            return;
                        }
-                       FeatureWidget widget = this.addFeatureWidget(MapFeature.WAYPOINT, waypoint.location());
+                       FeatureWidget widget = this.addFeatureWidget(guiGraphicsExtractor, MapFeature.WAYPOINT, waypoint.location());
                        if (widget == null) {
                            return;
                        }
@@ -504,11 +507,8 @@ public class SeedMapScreen extends Screen {
        // calculate spawn point
        if (this.toggleableFeatures.contains(MapFeature.WORLD_SPAWN) && Configs.ToggledFeatures.contains(MapFeature.WORLD_SPAWN)) {
            BlockPos spawnPoint = spawnDataCache.computeIfAbsent(this.worldIdentifier, _ -> this.calculateSpawnData());
-           this.addFeatureWidget(MapFeature.WORLD_SPAWN, spawnPoint);
+           this.addFeatureWidget(guiGraphicsExtractor, MapFeature.WORLD_SPAWN, spawnPoint);
        }
-
-       // draw feature icons
-       this.drawFeatureIcons(guiGraphicsExtractor);
 
        // draw marker
        if (!this.isMinimap()) {
@@ -592,30 +592,20 @@ public class SeedMapScreen extends Screen {
         return tile;
     }
 
-    private @Nullable FeatureWidget addFeatureWidget(MapFeature feature, BlockPos pos) {
-        return this.addFeatureWidget(feature, feature.getDefaultTexture(), pos);
+    private @Nullable FeatureWidget addFeatureWidget(GuiGraphicsExtractor guiGraphicsExtractor, MapFeature feature, BlockPos pos) {
+        return this.addFeatureWidget(guiGraphicsExtractor, feature, feature.getDefaultTexture(), pos);
     }
 
-    private @Nullable FeatureWidget addFeatureWidget(MapFeature feature, MapFeature.Texture variantTexture, BlockPos pos) {
+    private @Nullable FeatureWidget addFeatureWidget(GuiGraphicsExtractor guiGraphicsExtractor, MapFeature feature, MapFeature.Texture variantTexture, BlockPos pos) {
         FeatureWidget widget = new FeatureWidget(feature, variantTexture, pos);
         if (!widget.withinBounds()) {
             return null;
         }
 
         this.featureWidgets.add(widget);
-        return widget;
-    }
+        this.drawIcon(guiGraphicsExtractor, variantTexture.identifier(), widget.x, widget.y, variantTexture.width(), variantTexture.height(), 0xFF_FFFFFF);
 
-    private void drawFeatureIcons(GuiGraphicsExtractor guiGraphicsExtractor) {
-        for (ObjectIterator<FeatureWidget> iterator = this.featureWidgets.iterator(); iterator.hasNext();) {
-            FeatureWidget widget = iterator.next();
-            if (Configs.ToggledFeatures.contains(widget.feature)) {
-                MapFeature.Texture texture = widget.texture();
-                this.drawIcon(guiGraphicsExtractor, texture.identifier(), widget.x, widget.y, texture.width(), texture.height(), 0xFF_FFFFFF);
-            } else {
-                iterator.remove();
-            }
-        }
+        return widget;
     }
 
     protected void drawPlayerIndicator(GuiGraphicsExtractor guiGraphicsExtractor) {
