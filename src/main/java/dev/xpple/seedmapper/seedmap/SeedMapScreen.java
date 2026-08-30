@@ -82,15 +82,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SequenceLayout;
 import java.lang.foreign.ValueLayout;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntSupplier;
 import java.util.function.ToIntBiFunction;
@@ -208,6 +200,7 @@ public class SeedMapScreen extends Screen {
     private final List<MapFeature> toggleableFeatures;
     private final int featureIconsCombinedWidth;
 
+    private final EnumMap<MapFeature, Object2ObjectMap<TilePos, List<FeatureData>>> featureCache = new EnumMap<>(MapFeature.class);
     private final ObjectList<FeatureWidget> featureWidgets = new ObjectArrayList<>();
 
     private QuartPos2 mouseQuart;
@@ -388,9 +381,6 @@ public class SeedMapScreen extends Screen {
 
        TilePos centerTile = TilePos.fromQuartPos(QuartPos2.fromQuartPos2f(this.centerQuart));
 
-       int horChunkRadius = Math.ceilDiv(this.seedMapWidth / 2, SCALED_CHUNK_SIZE * Configs.PixelsPerBiome);
-       int verChunkRadius = Math.ceilDiv(this.seedMapHeight / 2, SCALED_CHUNK_SIZE * Configs.PixelsPerBiome);
-
        // compute structures
        Configs.ToggledFeatures.stream()
            .filter(this.toggleableFeatures::contains)
@@ -401,30 +391,48 @@ public class SeedMapScreen extends Screen {
                if (structureConfig == null) {
                    return;
                }
-               int regionSize = StructureConfig.regionSize(structureConfig);
-               RegionPos centerRegion = RegionPos.fromQuartPos(QuartPos2.fromQuartPos2f(this.centerQuart), regionSize);
-               int horRegionRadius = Math.ceilDiv(horChunkRadius, regionSize);
-               int verRegionRadius = Math.ceilDiv(verChunkRadius, regionSize);
-               StructureChecks.GenerationCheck generationCheck = StructureChecks.getGenerationCheck(structure);
-               for (int relRegionX = -horRegionRadius; relRegionX <= horRegionRadius; relRegionX++) {
-                   for (int relRegionZ = -verRegionRadius; relRegionZ <= verRegionRadius; relRegionZ++) {
-                       RegionPos regionPos = centerRegion.add(relRegionX, relRegionZ);
-                       if (Cubiomes.getStructurePos(structure, this.version, this.seed, regionPos.x(), regionPos.z(), structurePos) == 0) {
-                           continue;
-                       }
-                       ChunkPos chunkPos = new ChunkPos(SectionPos.blockToSectionCoord(Pos.x(structurePos)), SectionPos.blockToSectionCoord(Pos.z(structurePos)));
 
-                       ChunkStructureData chunkStructureData = this.structureCache.computeIfAbsent(chunkPos, _ -> new ChunkStructureData(chunkPos, new Int2ObjectArrayMap<>()));
-                       StructureData data = chunkStructureData.structures().computeIfAbsent(structure, _ -> this.calculateStructureData(feature, regionPos, structurePos, generationCheck));
-                       if (data == null) {
-                           continue;
+               Object2ObjectMap<TilePos, List<FeatureData>> featureCache = this.featureCache.computeIfAbsent(feature, _ -> new Object2ObjectOpenHashMap<>());
+               for (int relTileX = -horTileRadius; relTileX <= horTileRadius; relTileX++) {
+                   for (int relTileZ = -verTileRadius; relTileZ <= verTileRadius; relTileZ++) {
+                       TilePos tilePos = new TilePos(centerTile.x() + relTileX, centerTile.z() + relTileZ);
+
+                       List<FeatureData> features = featureCache.computeIfAbsent(tilePos, _ -> {
+                           int regionSize = StructureConfig.regionSize(structureConfig);
+                           RegionPos startPos = RegionPos.fromChunkPos(tilePos.toChunkPos(), regionSize);
+                           RegionPos endPos = RegionPos.fromChunkPos(tilePos.toLastChunkPos(), regionSize);
+
+                           List<FeatureData> featureData = new ArrayList<>();
+
+                           for (int regionX = startPos.x(); regionX <= endPos.x(); regionX++) {
+                               for (int regionZ = startPos.z(); regionZ <= endPos.z(); regionZ++) {
+                                   RegionPos regionPos = new RegionPos(regionX, regionZ, regionSize);
+                                   if (Cubiomes.getStructurePos(structure, this.version, this.seed, regionPos.x(), regionPos.z(), structurePos) == 0) {
+                                       continue;
+                                   }
+                                   ChunkPos chunkPos = new ChunkPos(SectionPos.blockToSectionCoord(Pos.x(structurePos)), SectionPos.blockToSectionCoord(Pos.z(structurePos)));
+
+                                   ChunkStructureData chunkStructureData = this.structureCache.computeIfAbsent(chunkPos, _ -> new ChunkStructureData(chunkPos, new Int2ObjectArrayMap<>()));
+                                   StructureData data = chunkStructureData.structures().computeIfAbsent(structure, _ -> this.calculateStructureData(feature, regionPos, structurePos, generationCheck));
+                                   if (data == null) {
+                                       continue;
+                                   }
+                                   featureData.add(new FeatureData(feature, data.texture(), data.pos()));
+                               }
+                           }
+
+                           return featureData;
+                       });
+
+                       for (FeatureData data : features) {
+                           this.addFeatureWidget(guiGraphicsExtractor, data.feature(), data.texture(), data.pos());
                        }
-                       this.addFeatureWidget(guiGraphicsExtractor, feature, data.texture(), data.pos());
                    }
                }
-           });
 
-       //guiGraphicsExtractor.nextStratum();
+
+
+           });
 
        // draw strongholds
        if (this.toggleableFeatures.contains(MapFeature.STRONGHOLD) && Configs.ToggledFeatures.contains(MapFeature.STRONGHOLD)) {

@@ -20,6 +20,10 @@ public record TilePos(int x, int z) {
         return new ChunkPos(this.x * TILE_SIZE_CHUNKS, this.z * TILE_SIZE_CHUNKS);
     }
 
+    public ChunkPos toLastChunkPos() {
+        return new ChunkPos((this.x + 1) * TILE_SIZE_CHUNKS - 1, (this.z + 1) * TILE_SIZE_CHUNKS - 1);
+    }
+
     public TilePos add(TilePos tilePos) {
         return this.add(tilePos.x, tilePos.z);
     }
