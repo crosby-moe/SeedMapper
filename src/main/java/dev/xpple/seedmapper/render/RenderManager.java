@@ -1,7 +1,14 @@
 package dev.xpple.seedmapper.render;
 
 import com.google.common.cache.CacheBuilder;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.RenderPass;
 import dev.xpple.seedmapper.config.Configs;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
@@ -9,8 +16,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.SubmitNodeCollection;
-import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.ARGB;
@@ -19,38 +24,75 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public final class RenderManager {
 
     private RenderManager() {
     }
 
-    private static final RenderStateDataKey<Set<Line>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper lines set");
+    private static final RenderStateDataKey<List<Map.Entry<RenderKey, FwickingWender>>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper lines set");
 
-    private static Set<Line> lines = Collections.emptySet();
+    private static Map<RenderKey, FwickingWender> renders = Collections.emptyMap();
     static {
         rebuildLineSet();
     }
 
     public static void rebuildLineSet() {
-        Set<Line> temp = lines;
-        lines = Collections.newSetFromMap(CacheBuilder.newBuilder().expireAfterWrite(Configs.HighlightDuration).<Line, Boolean>build().asMap());
-        lines.addAll(temp);
-        temp.clear();
+        Map<RenderKey, FwickingWender> temp = renders;
+        renders = CacheBuilder.newBuilder().expireAfterWrite(Configs.HighlightDuration).<RenderKey, FwickingWender>build().asMap();
+        renders.putAll(temp);
+        temp.clear(); // todo this might cause memory issues
+    }
+
+    private static void drawLines(Collection<Line> lines, RenderKey.RenderKind renderKind) {
+        Map<ChunkPos, List<Line>> separated = lines.stream().collect(Collectors.groupingBy(line -> ChunkPos.containing(BlockPos.containing(line.start()))));
+        separated.entrySet().forEach(entry -> entry.setValue(entry.getValue().stream().map(line -> line.offset(Vec3.atLowerCornerOf(entry.getKey().getWorldPosition()))).toList()));
+
+        try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(1024)) {
+            separated.forEach((chunkPos, groupLines) -> {
+                BufferBuilder buffer = new BufferBuilder(byteBufferBuilder, NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getPrimitiveTopology(), NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0));
+
+                for (Line line : groupLines) {
+                    Vec3 start = line.start();
+                    Vec3 end = line.end();
+                    Vec3 normal = end.subtract(start).normalize();
+                    int color = line.color();
+                    float red = ARGB.redFloat(color);
+                    float green = ARGB.greenFloat(color);
+                    float blue = ARGB.blueFloat(color);
+
+                    buffer
+                        .addVertex((float) start.x, (float) start.y, (float) start.z)
+                        .setColor(red, green, blue, 1.0F)
+                        .setNormal((float) normal.x, (float) normal.y, (float) normal.z)
+                        .setLineWidth(2);
+                    buffer
+                        .addVertex((float) end.x, (float) end.y, (float) end.z)
+                        .setColor(red, green, blue, 1.0F)
+                        .setNormal((float) normal.x, (float) normal.y, (float) normal.z)
+                        .setLineWidth(2);
+                }
+
+                try (MeshData meshData = buffer.buildOrThrow()) { // this wont throw though
+                    RenderKey renderKey = new RenderKey(chunkPos, renderKind);
+                    GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "SeedMapper render " + renderKey, GpuBuffer.USAGE_VERTEX, meshData.vertexBuffer());
+
+                    renders.put(renderKey, new FwickingWender(vertices));
+                }
+            });
+        }
     }
 
     public static void drawCancellingBoxes(Collection<BlockPos> posBatch, int color) {
         Collection<Line> batchLines = CancellingEdges.create(posBatch, color, null);
         if (batchLines != null) {
-            RenderManager.lines.addAll(batchLines);
+            drawLines(batchLines, new RenderKey.CancellingBoxes(color));
             return;
         }
 
-        Set<Line> lines = new HashSet<>();
+        Set<Line> lines = new ObjectOpenHashSet<>();
 
         posBatch.forEach(pos -> {
             Vec3 minPosition = new Vec3(pos);
@@ -68,10 +110,11 @@ public final class RenderManager {
             addCancellingLine(new Line(minPosition.add(0, size.y(), size.z()), minPosition.add(0, size.y(), 0), color), lines);
             addCancellingLine(new Line(minPosition.add(0, size.y(), size.z()), minPosition.add(size.x(), size.y(), size.z()), color), lines);
         });
-        RenderManager.lines.addAll(lines);
+        drawLines(lines, new RenderKey.CancellingBoxes(color));
     }
 
     public static void drawRectangles(Collection<AABB> rectangles, int color) {
+        Set<Line> lines = new ObjectOpenHashSet<>();
         for (AABB rectangle : rectangles) {
             double y = (rectangle.minY + rectangle.maxY) / 2;
             Vec3 minPosition = new Vec3(rectangle.minX, y, rectangle.minZ);
@@ -81,12 +124,13 @@ public final class RenderManager {
             lines.add(new Line(maxPosition, new Vec3(maxPosition.x, y, minPosition.z), color));
             lines.add(new Line(maxPosition, new Vec3(minPosition.x, y, maxPosition.z), color));
         }
+        drawLines(lines, new RenderKey.Rectangles(color));
     }
 
     public static void drawCancellingFaces(Collection<BlockPos> posBatch, int color, Direction direction) {
         Collection<Line> batchLines = CancellingEdges.create(posBatch, color, direction);
         if (batchLines != null) {
-            RenderManager.lines.addAll(batchLines);
+            drawLines(batchLines, new RenderKey.CancellingFaces(color, direction));
             return;
         }
 
@@ -135,11 +179,11 @@ public final class RenderManager {
                 }
             }
         });
-        RenderManager.lines.addAll(lines);
+        drawLines(lines, new RenderKey.CancellingFaces(color, direction));
     }
 
     public static void clear() {
-        lines.clear();
+        renders.clear();
     }
 
     private static void addCancellingLine(Line line, Set<Line> lines) {
@@ -154,49 +198,40 @@ public final class RenderManager {
     }
 
     private static void extractLines(LevelExtractionContext levelExtractionContext) {
-        Set<Line> extractedLines = new HashSet<>();
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {
             return;
         }
-        RenderManager.lines.forEach(line -> {
-            ChunkPos chunkPos = ChunkPos.containing(BlockPos.containing(line.start()));
-            if (level.getChunk(chunkPos.x(), chunkPos.z(), ChunkStatus.FULL, false) == null) {
-                return;
-            }
-            extractedLines.add(line.offset(levelExtractionContext.camera().position().scale(-1)));
-        });
-        levelExtractionContext.levelState().setData(LINES_SET_KEY, extractedLines);
+
+        levelExtractionContext.levelState().setData(LINES_SET_KEY, renders.entrySet().stream().filter(render -> {
+            ChunkPos chunkPos = render.getKey().chunk();
+            return level.getChunk(chunkPos.x(), chunkPos.z(), ChunkStatus.FULL, false) != null;
+        }).toList());
     }
 
     private static void renderLines(LevelRenderContext context) {
-        Set<Line> extractedLines = context.levelState().getData(LINES_SET_KEY);
+        List<Map.Entry<RenderKey, FwickingWender>> extractedLines = context.levelState().getData(LINES_SET_KEY);
         if (extractedLines == null) {
             return;
         }
-        extractedLines.forEach(line -> {
-            Vec3 start = line.start();
-            Vec3 end = line.end();
-            Vec3 normal = end.subtract(start).normalize();
-            int color = line.color();
-            float red = ARGB.redFloat(color);
-            float green = ARGB.greenFloat(color);
-            float blue = ARGB.blueFloat(color);
 
-            if (context.submitNodeCollector().order(0) instanceof SubmitNodeCollection collection) {
-                collection.afterTerrain.submit(new CustomFeatureRenderer.Submit(context.poseStack().last().copy(), NoDepthLayer.LINES_NO_DEPTH_LAYER, (pose, buffer) -> {
-                    buffer
-                        .addVertex(pose, (float) start.x, (float) start.y, (float) start.z)
-                        .setColor(red, green, blue, 1.0F)
-                        .setNormal(pose, (float) normal.x, (float) normal.y, (float) normal.z)
-                        .setLineWidth(2);
-                    buffer
-                        .addVertex(pose, (float) end.x, (float) end.y, (float) end.z)
-                        .setColor(red, green, blue, 1.0F)
-                        .setNormal(pose, (float) normal.x, (float) normal.y, (float) normal.z)
-                        .setLineWidth(2);
-                }));
-            }
-        });
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
+            pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE)); // todo
+
+            Vec3 cameraPos = context.levelState().cameraRenderState.pos;
+            extractedLines.forEach(render -> {
+                pass.setUniform("OffsetPosition", OffsetPosUniforms.write(
+                    (float) (render.getKey().chunk().getMinBlockX() - cameraPos.x),
+                    (float) (render.getKey().chunk().getMinBlockZ() - cameraPos.z)
+                ));
+
+                pass.setVertexBuffer(0, render.getValue().theBuffer.slice());
+
+                int vertices = (int) (render.getValue().theBuffer.size() / NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0).getVertexSize());
+                pass.draw(vertices, 0, 0, 0);
+            });
+        }
+
+        OffsetPosUniforms.endFrame();
     }
 }
