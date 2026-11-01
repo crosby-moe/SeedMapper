@@ -36,9 +36,6 @@ jobs:
           cmake --build build-x86
           cp build-x86/cubiomes_x86.dll ../../resources/
 
-      - name: Compute SHA256 hash
-        run: Get-FileHash -Algorithm SHA256 src/main/resources/cubiomes.dll
-
       - name: Capture shared library
         uses: actions/upload-artifact@v7
         with:
