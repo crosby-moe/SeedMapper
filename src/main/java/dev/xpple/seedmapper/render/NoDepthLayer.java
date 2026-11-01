@@ -10,9 +10,11 @@ public final class NoDepthLayer {
     private NoDepthLayer() {
     }
 
+    private static final BindGroupLayout OFFSET_POSITION = BindGroupLayout.builder().withUniform("OffsetPosition", UniformType.UNIFORM_BUFFER).build();
+
     public static final RenderPipeline LINES_NO_DEPTH_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.MATRICES_FOG_SNIPPET)
-            .withVertexShader(Identifier.fromNamespaceAndPath(SeedMapper.MOD_ID, "rendertype_buffered_lines"))
+            .withVertexShader(Identifier.fromNamespaceAndPath(SeedMapper.MOD_ID, "lines/rendertype_buffered_lines"))
             .withFragmentShader("core/rendertype_lines")
             .withLocation(Identifier.fromNamespaceAndPath(SeedMapper.MOD_ID, "pipeline/lines_no_depth"))
             .withCull(false)
@@ -20,6 +22,7 @@ public final class NoDepthLayer {
             .withPrimitiveTopology(PrimitiveTopology.LINES)
             .withColorTargetState(ColorTargetState.DEFAULT)
             .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
+            .withBindGroupLayout(OFFSET_POSITION)
             .build()
     );
 }
