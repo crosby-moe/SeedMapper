@@ -32,9 +32,9 @@ jobs:
         working-directory: src/main/c/cubiomes
         shell: msys2 {0}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release
-          cp build/cubiomes.dll ../../resources/cubiomes.dll
+          cmake -S . -B build-x86 -DCMAKE_BUILD_TYPE=Release -DCMAKE_RELEASE_POSTFIX=_x86
+          cmake --build build-x86
+          cp build-x86/cubiomes_x86.dll ../../resources/
 
       - name: Compute SHA256 hash
         run: Get-FileHash -Algorithm SHA256 src/main/resources/cubiomes.dll
@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: cubiomes.dll
-          path: src/main/resources/cubiomes.dll
+          path: src/main/resources/cubiomes_x86.dll
 
   build:
     name: Build SeedMapper
