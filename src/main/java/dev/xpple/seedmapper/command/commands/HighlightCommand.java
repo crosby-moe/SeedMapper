@@ -264,8 +264,10 @@ public class HighlightCommand {
                     Cubiomes.freePos3List(pos3List);
                 }
                 count[0] += ores.size();
-                RenderManager.drawCancellingBoxes(ores, Configs.BlockColors.getOrDefault(BLOCKS.inverse().get(OreConfig.oreBlock(oreConfig)), 0xFFFFFF));
-                source.sendFeedback(Component.translatable("command.highlight.block.chunkSuccess", accent(String.valueOf(ores.size())), ExtraComponentUtils.formatXZ(chunkX, chunkZ)));
+                source.getClient().schedule(() -> {
+                    RenderManager.drawCancellingBoxes(ores, Configs.BlockColors.getOrDefault(BLOCKS.inverse().get(OreConfig.oreBlock(oreConfig)), 0xFFFFFF));
+                    source.sendFeedback(Component.translatable("command.highlight.block.chunkSuccess", accent(String.valueOf(ores.size())), ExtraComponentUtils.formatXZ(chunkX, chunkZ)));
+                });
                 return null;
             });
 
@@ -322,13 +324,15 @@ public class HighlightCommand {
                     }
                     count[0] += positions.size();
                     int color = Configs.BlockColors.getOrDefault(BLOCKS.inverse().get(block), 0xFFFFFF);
-                    RenderManager.drawCancellingBoxes(positions, color);
-                    if (MixinConfigPlugin.BARITONE_AVAILABLE && Configs.AutoMine) {
-                        BaritoneIntegration.addGoals(positions);
-                    }
-                    if (block == Cubiomes.RAW_COPPER_BLOCK() || block == Cubiomes.RAW_IRON_BLOCK()) {
-                        source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.highlight.oreVein.rawBlocks", ExtraComponentUtils.formatXYZCollection(positions))));
-                    }
+                    source.getClient().schedule(() -> {
+                        RenderManager.drawCancellingBoxes(positions, color);
+                        if (MixinConfigPlugin.BARITONE_AVAILABLE && Configs.AutoMine) {
+                            BaritoneIntegration.addGoals(positions);
+                        }
+                        if (block == Cubiomes.RAW_COPPER_BLOCK() || block == Cubiomes.RAW_IRON_BLOCK()) {
+                            source.sendFeedback(Component.translatable("command.highlight.oreVein.rawBlocks", ExtraComponentUtils.formatXYZCollection(positions)));
+                        }
+                    });
                 });
 
             source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.highlight.oreVein.success", accent(String.valueOf(count[0])))));
@@ -403,7 +407,7 @@ public class HighlightCommand {
                     }
                 }
             }
-            RenderManager.drawCancellingBoxes(blocks, 0xFF_FF0000);
+            source.getClient().schedule(() -> RenderManager.drawCancellingBoxes(blocks, 0xFF_FF0000));
             return blocks.size();
         }
     }
@@ -458,7 +462,7 @@ public class HighlightCommand {
                     ys.add(new BlockPos(x, y, z));
                 }
             }
-            RenderManager.drawCancellingFaces(ys, 0xFF_FF0000, Direction.UP);
+            source.getClient().schedule(() -> RenderManager.drawCancellingFaces(ys, 0xFF_FF0000, Direction.UP));
             return ys.size();
         }
     }
@@ -560,8 +564,11 @@ public class HighlightCommand {
             blocks.add(new BlockPos(Pos3.x(pos3), Pos3.y(pos3), Pos3.z(pos3)));
         }
         Cubiomes.freePos3List(pos3List);
-        RenderManager.drawCancellingBoxes(blocks, 0xFF_FF0000);
-        source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.highlight.carver.success", accent(String.valueOf(blocks.size())))));
+
+        source.getClient().schedule(() -> {
+            RenderManager.drawCancellingBoxes(blocks, 0xFF_FF0000);
+            source.sendFeedback(Component.translatable("command.highlight.carver.success", accent(String.valueOf(blocks.size()))));
+        });
         return blocks.size();
     }
 
