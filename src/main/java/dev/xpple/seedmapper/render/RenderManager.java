@@ -190,6 +190,7 @@ public final class RenderManager {
     }
 
     public static void clear() {
+        renders.values().forEach(FwickingWender::close);
         renders.clear();
     }
 
