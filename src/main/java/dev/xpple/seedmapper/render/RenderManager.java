@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import dev.xpple.seedmapper.config.Configs;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
@@ -216,12 +217,18 @@ public final class RenderManager {
             return;
         }
 
+        int maxIndexCount = extractedLines.stream().mapToInt(entry -> entry.getValue().indexCount()).max().orElseThrow();
+
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
             pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE)); // todo
 
             RenderSystem.bindDefaultUniforms(pass);
             GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(RenderSystem.getModelViewMatrixCopy());
             pass.setUniform("DynamicTransforms", dynamicTransforms);
+
+            RenderSystem.AutoStorageIndexBuffer sequentialIndices = RenderSystem.getSequentialBuffer(NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getPrimitiveTopology());
+            GpuBuffer indexBuffer = sequentialIndices.getBuffer(maxIndexCount);
+            pass.setIndexBuffer(indexBuffer, sequentialIndices.type());
 
             Vec3 cameraPos = context.levelState().cameraRenderState.pos;
             extractedLines.forEach(render -> {
@@ -231,10 +238,8 @@ public final class RenderManager {
                     (float) (render.getKey().chunk().getMinBlockZ() - cameraPos.z)
                 ));
 
-                pass.setVertexBuffer(0, render.getValue().theBuffer.slice());
-
-                int vertices = (int) (render.getValue().theBuffer.size() / NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0).getVertexSize());
-                pass.draw(vertices, 1, 0, 0);
+                pass.setVertexBuffer(0, render.getValue().theBuffer().slice());
+                pass.drawIndexed(render.getValue().indexCount(), 1, 0, 0, 0);
             });
         }
 
