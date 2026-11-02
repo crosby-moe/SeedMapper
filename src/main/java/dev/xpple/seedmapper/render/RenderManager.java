@@ -213,7 +213,7 @@ public final class RenderManager {
 
     private static void renderLines(LevelRenderContext context) {
         List<Map.Entry<RenderKey, FwickingWender>> extractedLines = context.levelState().getData(LINES_SET_KEY);
-        if (extractedLines == null) {
+        if (extractedLines == null || extractedLines.isEmpty()) {
             return;
         }
 
