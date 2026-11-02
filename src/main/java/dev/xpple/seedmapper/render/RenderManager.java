@@ -27,6 +27,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public final class RenderManager {
@@ -61,14 +62,14 @@ public final class RenderManager {
             separated.forEach((chunkPos, groupLines) -> {
                 BufferBuilder buffer = new BufferBuilder(byteBufferBuilder, NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getPrimitiveTopology(), NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0));
 
+                float red = ThreadLocalRandom.current().nextFloat();
+                float green = ThreadLocalRandom.current().nextFloat();
+                float blue = ThreadLocalRandom.current().nextFloat();
+
                 for (Line line : groupLines) {
                     Vec3 start = line.start();
                     Vec3 end = line.end();
                     Vec3 normal = end.subtract(start).normalize();
-                    int color = line.color();
-                    float red = ARGB.redFloat(color);
-                    float green = ARGB.greenFloat(color);
-                    float blue = ARGB.blueFloat(color);
 
                     buffer
                         .addVertex((float) start.x, (float) start.y, (float) start.z)
