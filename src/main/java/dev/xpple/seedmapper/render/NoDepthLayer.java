@@ -21,7 +21,7 @@ public final class NoDepthLayer {
             .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH)
             .withPrimitiveTopology(PrimitiveTopology.LINES)
             .withColorTargetState(ColorTargetState.DEFAULT)
-            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
             .withBindGroupLayout(OFFSET_POSITION)
             .build()
     );

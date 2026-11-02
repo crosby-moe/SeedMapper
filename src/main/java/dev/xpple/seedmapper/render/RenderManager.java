@@ -227,13 +227,14 @@ public final class RenderManager {
             extractedLines.forEach(render -> {
                 pass.setUniform("OffsetPosition", OffsetPosUniforms.write(
                     (float) (render.getKey().chunk().getMinBlockX() - cameraPos.x),
+                    (float) -cameraPos.y,
                     (float) (render.getKey().chunk().getMinBlockZ() - cameraPos.z)
                 ));
 
                 pass.setVertexBuffer(0, render.getValue().theBuffer.slice());
 
                 int vertices = (int) (render.getValue().theBuffer.size() / NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0).getVertexSize());
-                pass.draw(vertices, 0, 0, 0);
+                pass.draw(vertices, 1, 0, 0);
             });
         }
 

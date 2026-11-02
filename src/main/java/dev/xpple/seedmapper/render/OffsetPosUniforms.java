@@ -20,15 +20,15 @@ public class OffsetPosUniforms {
         STORAGE.endFrame();
     }
 
-    public static GpuBufferSlice write(float xOffset, float zOffset) {
-        return STORAGE.writeData(new Data(xOffset, zOffset));
+    public static GpuBufferSlice write(float xOffset, float yOffset, float zOffset) {
+        return STORAGE.writeData(new Data(xOffset, yOffset, zOffset));
     }
 
-    private record Data(float xOffset, float zOffset) implements DynamicGpuDataStorage.DynamicGpuData {
+    private record Data(float xOffset, float yOffset, float zOffset) implements DynamicGpuDataStorage.DynamicGpuData {
         @Override
         public void write(ByteBuffer buffer) {
             Std140Builder.intoBuffer(buffer)
-                .putVec3(xOffset, 0f, zOffset);
+                .putVec3(xOffset, yOffset, zOffset);
         }
     }
 }
