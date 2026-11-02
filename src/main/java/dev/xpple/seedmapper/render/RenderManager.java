@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import dev.xpple.seedmapper.config.Configs;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -194,7 +195,7 @@ public final class RenderManager {
 
     public static void registerEvents() {
         LevelExtractionEvents.END_EXTRACTION.register(RenderManager::extractLines);
-        LevelRenderEvents.BEFORE_GIZMOS.register(RenderManager::renderLines);
+        LevelRenderEvents.END_MAIN.register(RenderManager::renderLines);
     }
 
     private static void extractLines(LevelExtractionContext levelExtractionContext) {
@@ -217,6 +218,10 @@ public final class RenderManager {
 
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
             pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE)); // todo
+
+            RenderSystem.bindDefaultUniforms(pass);
+            GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(RenderSystem.getModelViewMatrixCopy());
+            pass.setUniform("DynamicTransforms", dynamicTransforms);
 
             Vec3 cameraPos = context.levelState().cameraRenderState.pos;
             extractedLines.forEach(render -> {
