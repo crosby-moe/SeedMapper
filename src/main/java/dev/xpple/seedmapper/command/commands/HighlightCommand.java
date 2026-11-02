@@ -81,7 +81,7 @@ public class HighlightCommand {
             .then(literal("terrain")
                 .requires(_ -> Configs.DevMode)
                 .executes(ctx -> highlightTerrain(CustomClientCommandSource.of(ctx.getSource())))
-                .then(argument("chunks", integer(0, 5))
+                .then(argument("chunks", integer(0, 10))
                     .executes(ctx -> submit(() -> highlightTerrain(CustomClientCommandSource.of(ctx.getSource()), getInteger(ctx, "chunks"))))
                     .then(argument("minY", integer(-64, 320))
                         .then(argument("maxY", integer(-64, 320))

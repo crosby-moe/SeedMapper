@@ -1,6 +1,7 @@
 package dev.xpple.seedmapper.render;
 
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalCause;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
@@ -33,18 +34,23 @@ public final class RenderManager {
     private RenderManager() {
     }
 
-    private static final RenderStateDataKey<List<Map.Entry<RenderKey, FwickingWender>>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper lines set");
+    private static final RenderStateDataKey<List<Map.Entry<RenderKey, FwickingWender>>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper renders");
 
     private static Map<RenderKey, FwickingWender> renders = Collections.emptyMap();
     static {
-        rebuildLineSet();
+        rebuildRenderMap();
     }
 
-    public static void rebuildLineSet() {
+    public static void rebuildRenderMap() {
         Map<RenderKey, FwickingWender> temp = renders;
-        renders = CacheBuilder.newBuilder().expireAfterWrite(Configs.HighlightDuration).<RenderKey, FwickingWender>build().asMap();
+        renders = CacheBuilder.newBuilder()
+            .expireAfterWrite(Configs.HighlightDuration)
+            .<RenderKey, FwickingWender>removalListener(notif -> {
+                if (notif.getCause() != RemovalCause.EXPLICIT) notif.getValue().close(); // avoid closing gpu buffers when rebuilding render map
+            })
+            .build().asMap();
         renders.putAll(temp);
-        temp.clear(); // todo this might cause memory issues
+        temp.clear();
     }
 
     private static void drawLines(Collection<Line> lines, RenderKey.RenderKind renderKind) {
@@ -218,8 +224,8 @@ public final class RenderManager {
 
         int maxIndexCount = extractedLines.stream().mapToInt(entry -> entry.getValue().indexCount()).max().orElseThrow();
 
-        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
-            pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE)); // todo
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "SeedMapper renders", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
+            pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE));
 
             RenderSystem.bindDefaultUniforms(pass);
             GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(RenderSystem.getModelViewMatrixCopy());

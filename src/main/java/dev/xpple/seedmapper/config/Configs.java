@@ -209,7 +209,7 @@ public class Configs {
     @Config(onChange = "updateHighlightDuration")
     public static Duration HighlightDuration = Duration.ofMinutes(5);
     private static void updateHighlightDuration(Duration oldValue, Duration newValue) {
-        RenderManager.rebuildLineSet();
+        RenderManager.rebuildRenderMap();
     }
 
     @Config(condition = "hasBaritoneAvailable", onChange = "updateBaritoneGoals")
