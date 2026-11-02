@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
-import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import dev.xpple.seedmapper.config.Configs;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
@@ -50,7 +49,7 @@ public final class RenderManager {
 
     private static void drawLines(Collection<Line> lines, RenderKey.RenderKind renderKind) {
         Map<ChunkPos, List<Line>> separated = lines.stream().collect(Collectors.groupingBy(line -> ChunkPos.containing(BlockPos.containing(line.start()))));
-        separated.entrySet().forEach(entry -> entry.setValue(entry.getValue().stream().map(line -> line.offset(Vec3.atLowerCornerOf(entry.getKey().getWorldPosition()))).toList()));
+        separated.entrySet().forEach(entry -> entry.setValue(entry.getValue().stream().map(line -> line.subtract(Vec3.atLowerCornerOf(entry.getKey().getWorldPosition()))).toList()));
 
         try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(1024)) {
             separated.forEach((chunkPos, groupLines) -> {

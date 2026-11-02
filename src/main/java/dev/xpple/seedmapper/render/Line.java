@@ -12,7 +12,7 @@ public record Line(Vec3 start, Vec3 end, int color) {
         }
     }
 
-    public Line offset(Vec3 offset) {
-        return new Line(this.start.add(offset), this.end.add(offset), this.color);
+    public Line subtract(Vec3 offset) {
+        return new Line(this.start.subtract(offset), this.end.subtract(offset), this.color);
     }
 }
