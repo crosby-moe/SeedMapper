@@ -32,10 +32,11 @@ public final class RenderManager {
     private RenderManager() {
     }
 
+    public static final boolean RANDOMIZE_COLORS_PER_BUFFER = true;
     private static final RenderStateDataKey<Collection<FwickingWender>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper renders");
 
     // I LOVE STATE MANAGEMENT I LOVE STATE MANAGEMENT I LOVE STATE MANAGEMENT
-    private static Map<RenderKey, LineBatch> theLines = null;
+    private static Map<RenderKey, LineBatch> theLines = Collections.emptyMap(); // dude if this fucks up let's crash asap on some real shit
     private static final Map<BufferedRegionPos, FwickingWender> renders = new Object2ObjectOpenHashMap<>();
 
     private static final Queue<LineBatch> removalQueue = new ConcurrentLinkedQueue<>();
@@ -65,8 +66,11 @@ public final class RenderManager {
             .peek(lineBatch -> {
                 RenderKey renderKey = new RenderKey(lineBatch.regionPos(), renderKind);
                 @Nullable LineBatch oldValue = theLines.put(renderKey, lineBatch);
-                // expire old batch
-                if (oldValue != null) removalQueue.add(oldValue);
+                // expire old batch, cant use removal queue here, or it may remove ^ new value above
+                if (oldValue != null) {
+                    @Nullable FwickingWender wender = renders.get(oldValue.regionPos());
+                    if (wender != null) wender.depend(oldValue);
+                }
             })
 
         // then add line batches to be rendered

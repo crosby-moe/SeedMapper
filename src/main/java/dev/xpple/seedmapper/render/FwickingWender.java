@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class FwickingWender {
     public final BufferedRegionPos regionPos;
@@ -53,6 +54,10 @@ public class FwickingWender {
     public void ratioBozo() {
         if (!needsUpload) return;
 
+        float lockedRed = ThreadLocalRandom.current().nextFloat();
+        float lockedGreen = ThreadLocalRandom.current().nextFloat();
+        float lockedBlue = ThreadLocalRandom.current().nextFloat();
+
         try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(1024)) {
             BufferBuilder buffer = new BufferBuilder(byteBufferBuilder, NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getPrimitiveTopology(), NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0));
             for (LineBatch batch : theData) {
@@ -61,9 +66,9 @@ public class FwickingWender {
                     Vec3 end = line.end();
                     Vec3 normal = end.subtract(start).normalize();
                     int color = line.color();
-                    float red = ARGB.redFloat(color);
-                    float green = ARGB.greenFloat(color);
-                    float blue = ARGB.blueFloat(color);
+                    float red = RenderManager.RANDOMIZE_COLORS_PER_BUFFER ? lockedRed : ARGB.redFloat(color);
+                    float green = RenderManager.RANDOMIZE_COLORS_PER_BUFFER ? lockedGreen : ARGB.greenFloat(color);
+                    float blue = RenderManager.RANDOMIZE_COLORS_PER_BUFFER ? lockedBlue : ARGB.blueFloat(color);
 
                     buffer
                         .addVertex((float) start.x, (float) start.y, (float) start.z)
