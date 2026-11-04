@@ -3,13 +3,12 @@ package dev.xpple.seedmapper.render;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import dev.xpple.seedmapper.config.Configs;
+import dev.xpple.seedmapper.util.BufferedRegionPos;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
@@ -20,13 +19,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.util.ARGB;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 public final class RenderManager {
@@ -34,62 +32,48 @@ public final class RenderManager {
     private RenderManager() {
     }
 
-    private static final RenderStateDataKey<List<Map.Entry<RenderKey, FwickingWender>>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper renders");
+    private static final RenderStateDataKey<Collection<FwickingWender>> LINES_SET_KEY = RenderStateDataKey.create(() -> "SeedMapper renders");
 
-    private static Map<RenderKey, FwickingWender> renders = Collections.emptyMap();
+    // I LOVE STATE MANAGEMENT I LOVE STATE MANAGEMENT I LOVE STATE MANAGEMENT
+    private static Map<RenderKey, LineBatch> theLines = null;
+    private static final Map<BufferedRegionPos, FwickingWender> renders = new Object2ObjectOpenHashMap<>();
+
+    private static final Queue<LineBatch> removalQueue = new ConcurrentLinkedQueue<>();
+
     static {
         rebuildRenderMap();
     }
 
     public static void rebuildRenderMap() {
-        Map<RenderKey, FwickingWender> temp = renders;
-        renders = CacheBuilder.newBuilder()
+        Map<RenderKey, LineBatch> temp = theLines;
+        theLines = CacheBuilder.newBuilder()
             .expireAfterWrite(Configs.HighlightDuration)
-            .<RenderKey, FwickingWender>removalListener(notif -> {
-                if (notif.getCause() != RemovalCause.EXPLICIT) notif.getValue().close(); // avoid closing gpu buffers when rebuilding render map
+            .<RenderKey, LineBatch>removalListener(notif -> {
+                if (notif.getCause() != RemovalCause.EXPLICIT) removalQueue.add(notif.getValue()); // avoid closing gpu buffers when rebuilding render map
             })
             .build().asMap();
-        renders.putAll(temp);
+        theLines.putAll(temp);
         temp.clear();
     }
 
     private static void drawLines(Collection<Line> lines, RenderKey.RenderKind renderKind) {
-        Map<ChunkPos, List<Line>> separated = lines.stream().collect(Collectors.groupingBy(line -> ChunkPos.containing(BlockPos.containing(line.start()))));
-        separated.entrySet().forEach(entry -> entry.setValue(entry.getValue().stream().map(line -> line.subtract(Vec3.atLowerCornerOf(entry.getKey().getWorldPosition()))).toList()));
+        // first split lines into per buffered region line batches
+        lines.stream().collect(Collectors.groupingBy(line -> BufferedRegionPos.containing(line.start())))
+                .entrySet().stream().map(entry -> new LineBatch(entry.getKey(), entry.getValue()))
 
-        try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(1024)) {
-            separated.forEach((chunkPos, groupLines) -> {
-                BufferBuilder buffer = new BufferBuilder(byteBufferBuilder, NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getPrimitiveTopology(), NoDepthLayer.LINES_NO_DEPTH_PIPELINE.getVertexFormatBinding(0));
+        // then add line batches to the cache for tracking expiration
+            .peek(lineBatch -> {
+                RenderKey renderKey = new RenderKey(lineBatch.regionPos(), renderKind);
+                @Nullable LineBatch oldValue = theLines.put(renderKey, lineBatch);
+                // expire old batch
+                if (oldValue != null) removalQueue.add(oldValue);
+            })
 
-                for (Line line : groupLines) {
-                    Vec3 start = line.start();
-                    Vec3 end = line.end();
-                    Vec3 normal = end.subtract(start).normalize();
-                    int color = line.color();
-                    float red = ARGB.redFloat(color);
-                    float green = ARGB.greenFloat(color);
-                    float blue = ARGB.blueFloat(color);
-
-                    buffer
-                        .addVertex((float) start.x, (float) start.y, (float) start.z)
-                        .setColor(red, green, blue, 1.0F)
-                        .setNormal((float) normal.x, (float) normal.y, (float) normal.z)
-                        .setLineWidth(2);
-                    buffer
-                        .addVertex((float) end.x, (float) end.y, (float) end.z)
-                        .setColor(red, green, blue, 1.0F)
-                        .setNormal((float) normal.x, (float) normal.y, (float) normal.z)
-                        .setLineWidth(2);
-                }
-
-                try (MeshData meshData = buffer.buildOrThrow()) { // this wont throw though
-                    RenderKey renderKey = new RenderKey(chunkPos, renderKind);
-                    GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "SeedMapper render " + renderKey, GpuBuffer.USAGE_VERTEX, meshData.vertexBuffer());
-
-                    renders.put(renderKey, new FwickingWender(vertices));
-                }
+        // then add line batches to be rendered
+            .forEach(lineBatch -> {
+                FwickingWender wender = renders.computeIfAbsent(lineBatch.regionPos(), FwickingWender::new);
+                wender.append(lineBatch);
             });
-        }
     }
 
     public static void drawCancellingBoxes(Collection<BlockPos> posBatch, int color) {
@@ -211,19 +195,30 @@ public final class RenderManager {
             return;
         }
 
-        levelExtractionContext.levelState().setData(LINES_SET_KEY, renders.entrySet().stream().filter(render -> {
-            ChunkPos chunkPos = render.getKey().chunk();
-            return level.getChunk(chunkPos.x(), chunkPos.z(), ChunkStatus.FULL, false) != null;
-        }).toList());
+        // process removal queue (guava cache is prone to race condition i think)
+        LineBatch removal;
+        while ((removal = removalQueue.poll()) != null) {
+            @Nullable FwickingWender wender = renders.get(removal.regionPos());
+            if (wender != null) wender.depend(removal);
+        }
+
+        // upload da new thingies :3
+        renders.values().forEach(FwickingWender::ratioBozo);
+
+        // wipe da empty ones >w<
+        renders.values().removeIf(FwickingWender::isEmpty);
+
+        // set da render thingie
+        levelExtractionContext.levelState().setData(LINES_SET_KEY, renders.values());
     }
 
     private static void renderLines(LevelRenderContext context) {
-        List<Map.Entry<RenderKey, FwickingWender>> extractedLines = context.levelState().getData(LINES_SET_KEY);
-        if (extractedLines == null || extractedLines.isEmpty()) {
+        Collection<FwickingWender> wenders = context.levelState().getData(LINES_SET_KEY);
+        if (wenders == null || wenders.isEmpty()) {
             return;
         }
 
-        int maxIndexCount = extractedLines.stream().mapToInt(entry -> entry.getValue().indexCount()).max().orElseThrow();
+        int maxIndexCount = wenders.stream().mapToInt(FwickingWender::getIndexCount).max().orElseThrow();
 
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "SeedMapper renders", context.gameRenderer().mainRenderTarget().getColorTextureView(), Optional.empty())) {
             pass.setPipeline(RenderSystem.getCompiledPipeline(NoDepthLayer.LINES_NO_DEPTH_PIPELINE));
@@ -237,15 +232,15 @@ public final class RenderManager {
             pass.setIndexBuffer(indexBuffer, sequentialIndices.type());
 
             Vec3 cameraPos = context.levelState().cameraRenderState.pos;
-            extractedLines.forEach(render -> {
+            wenders.forEach(render -> {
                 pass.setUniform("OffsetPosition", OffsetPosUniforms.write(
-                    (float) (render.getKey().chunk().getMinBlockX() - cameraPos.x),
+                    (float) (render.regionPos.getMinBlockX() - cameraPos.x),
                     (float) -cameraPos.y,
-                    (float) (render.getKey().chunk().getMinBlockZ() - cameraPos.z)
+                    (float) (render.regionPos.getMinBlockZ() - cameraPos.z)
                 ));
 
-                pass.setVertexBuffer(0, render.getValue().theBuffer().slice());
-                pass.drawIndexed(render.getValue().indexCount(), 1, 0, 0, 0);
+                pass.setVertexBuffer(0, render.getVertexBuffer());
+                pass.drawIndexed(render.getIndexCount(), 1, 0, 0, 0);
             });
         }
 
