@@ -216,7 +216,7 @@ public final class RenderManager {
         renders.values().forEach(FwickingWender::ratioBozo);
 
         // wipe da empty ones >w<
-        renders.values().removeIf(FwickingWender::isEmpty);
+        renders.values().removeIf(FwickingWender::closeIfEmpty);
 
         // set da render thingie
         levelExtractionContext.levelState().setData(LINES_SET_KEY, renders.values());

@@ -95,6 +95,15 @@ public class FwickingWender {
         }
     }
 
+    public boolean closeIfEmpty() {
+        if (isEmpty()) {
+            close();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public void close() {
         this.theBuffer.close();
     }
