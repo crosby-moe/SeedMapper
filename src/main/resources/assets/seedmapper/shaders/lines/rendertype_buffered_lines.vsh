@@ -47,7 +47,8 @@ void main() {
         gl_Position = vec4((ndc1 - vec3(lineOffset, 0.0)) * linePosStart.w, linePosStart.w);
     }
 
-    sphericalVertexDistance = fog_spherical_distance(Position + Offset);
-    cylindricalVertexDistance = fog_cylindrical_distance(Position + Offset);
+    // look mister xpple i unfogged it :D
+    sphericalVertexDistance = 0; //fog_spherical_distance(Position + Offset);
+    cylindricalVertexDistance = 0; //fog_cylindrical_distance(Position + Offset);
     vertexColor = Color;
 }
