@@ -62,6 +62,12 @@ public final class RenderManager {
         lines.stream().collect(Collectors.groupingBy(line -> BufferedRegionPos.containing(line.start())))
                 .entrySet().stream().map(entry -> new LineBatch(entry.getKey(), entry.getValue()))
 
+        // then convert to buffered region local coordinates
+            .map(lineBatch -> new LineBatch(
+                lineBatch.regionPos(),
+                lineBatch.lines().stream().map(line -> line.subtract(lineBatch.regionPos().getLowerCorner())).toList()
+            ))
+
         // then add line batches to the cache for tracking expiration
             .peek(lineBatch -> {
                 RenderKey renderKey = new RenderKey(lineBatch.regionPos(), renderKind);

@@ -53,6 +53,10 @@ public record BufferedRegionPos(int x, int z) {
         return getMinChunkZ() + offset;
     }
 
+    public Vec3 getLowerCorner() {
+        return Vec3.atLowerCornerOf(new BlockPos(this.getMinBlockX(), 0, this.getMinBlockZ()));
+    }
+
     public boolean isAnyLoaded(ClientLevel level) {
         return level.getChunk(this.getChunkX(0), this.getChunkZ(0), ChunkStatus.FULL, false) != null
             || level.getChunk(this.getChunkX(0), this.getChunkZ(3), ChunkStatus.FULL, false) != null

@@ -53,6 +53,7 @@ public class FwickingWender {
 
     public void ratioBozo() {
         if (!needsUpload) return;
+        needsUpload = false;
 
         float lockedRed = ThreadLocalRandom.current().nextFloat();
         float lockedGreen = ThreadLocalRandom.current().nextFloat();
